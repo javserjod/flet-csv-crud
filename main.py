@@ -13,6 +13,9 @@ df_dataset = []             # global variable to store the dataset (pd.Dataframe
 #current_headers = []       # global variable to store the current headers of the dataset (list of headers) MUTABLE
 #current_rows = []          # global variable to store the current rows of the dataset   (list of rows) MUTABLE
 selected_rows = []          # global variable to store the selected rows of the dataset (list of row indexes) MUTABLE
+slider_creation_index = 0   # global variable to store the index selected for the new row creation (int)
+
+
 
 snack_bar_duration: Final = 8000   # duration of the snack bar in miliseconds
 
@@ -50,18 +53,18 @@ def main(page: ft.Page):
             df_dataset = pd.read_csv(file_path)    # asign the dataset to the global variable
    
             # if dataset does not include headers, add default headers to global dataset
-            if (check_if_headers_exist(df_dataset)) == False:  
+            if (check_if_headers_exist()) == False:  
                 default_headers = [f"Feature{i}" for i in range(0, len(df_dataset.columns))]  # create default headers
-                current_headers = get_headers(df_dataset)    # store the current headers, which will be converted in the first row of data
+                current_headers = get_headers()    # store the current headers, which will be converted in the first row of data
                 df_dataset = df_dataset.set_axis(default_headers, axis="columns")    # change the headers to the default ones           
                 df_dataset = pd.concat([pd.DataFrame([current_headers], columns = default_headers), df_dataset], ignore_index=True)   # add the previous headers as the first row
                 df_dataset.reset_index(drop=True, inplace=True)   # reset the index of the dataset, so it starts from 0 and goes up consecutive numbers
 
-            datacolumns = create_datacolumns(df_dataset)   # create the DataColumn controls for the datatable
-            datarows = create_datarows(df_dataset)         # create the DataRow controls for the datatable
+            datacolumns = create_datacolumns()   # create the DataColumn controls for the datatable
+            datarows = create_datarows()         # create the DataRow controls for the datatable
             
-            #current_headers = get_headers(df_dataset)   # store the current headers in global variable
-            #current_rows = get_rows(df_dataset)         # store the current rows in global variable
+            #current_headers = get_headers()   # store the current headers in global variable
+            #current_rows = get_rows()         # store the current rows in global variable
     
             _datatable_space.content = ft.DataTable(                 # create the datatable
                                         columns = datacolumns, 
@@ -96,8 +99,9 @@ def main(page: ft.Page):
             page.update()
 
 
-    def check_if_headers_exist(df_dataset: pd.DataFrame) -> bool:
+    def check_if_headers_exist() -> bool:
         # assume that if the first row contains only numbers, then there is no header
+        global df_dataset
         try:
             [float(header) for header in df_dataset.columns]   # try to convert each header to float to check if it is a number
         except ValueError:  # if error occurs, we assume that there is a header, probably a string
@@ -105,11 +109,12 @@ def main(page: ft.Page):
         return False        # there is no header if the execution was successful
 
 
-    def create_datacolumns(df_dataset: pd.DataFrame) -> list:
+    def create_datacolumns() -> list:
         # returns each feature (columns' names, headers) as a DataColumn
+        global df_dataset
         return [ft.DataColumn(  ft.Container(
                                     ft.Text(header, weight = "bold"),
-                                    on_click= lambda e, hi=header_index: edit_header(e, hi, df_dataset),
+                                    on_click= lambda e, hi=header_index: edit_header(e, hi),
                                     #bgcolor=ft.colors.BLUE_GREY_900,
                                     ink = True,
                                     ink_color = ft.colors.BLUE_GREY_500,
@@ -121,15 +126,16 @@ def main(page: ft.Page):
                 for header_index,header in enumerate(df_dataset.columns)]
     
            
-    def create_datarows(df_dataset: pd.DataFrame) -> list:
+    def create_datarows() -> list:
         # returns each row as a DataRow
+        global df_dataset
         rows = []
         for row_index, row in df_dataset.iterrows(): 
             rows.append(ft.DataRow(
                                     cells = [ft.DataCell(
                                                 ft.Text(row[header]),
                                                 show_edit_icon = False, 
-                                                on_tap = lambda e, ri=row_index, hi=header_index: edit_data(e, ri, hi, df_dataset)  #save values for each cell with lambda function
+                                                on_tap = lambda e, ri=row_index, hi=header_index: edit_data(e, ri, hi)  #save values for each cell with lambda function
                                                 )   
                                             for header_index,header in enumerate(df_dataset.columns)
                                             ],
@@ -139,30 +145,34 @@ def main(page: ft.Page):
         return rows
         
         
-    def get_headers(df_dataset: pd.DataFrame) -> list:
+    def get_headers() -> list:
         # returns the headers of the dataset as a list of values
+        global df_dataset
         return df_dataset.columns.tolist()
             
-    def get_rows(df_dataset: pd.DataFrame) -> list:
+    def get_rows() -> list:
         # returns the rows of the dataset as a list of list/rows
+        global df_dataset
         return df_dataset.values.tolist()
  
 
     #--------- HEADER EDITING IN DATATABLE FUNCTIONS -------------------------------------
-    def edit_header(e, header_index: int, df_dataset: pd.DataFrame) -> None:
+    def edit_header(e, header_index: int) -> None:
+        global df_dataset
         old_value = e.control.content.value
         print("\nOld header name: ", old_value)
         e.control.content = ft.TextField(
                                 label = old_value,
                                 value = "",
-                                on_submit = lambda e: save_header_edit(e, header_index, df_dataset, old_value),     # when pressing enter, save the new header name
+                                on_submit = lambda e: save_header_edit(e, header_index, old_value),     # when pressing enter, save the new header name
                                 on_blur= lambda e: cancel_header_edit(e, header_index, old_value),                  # when clicking outside the textfield, cancel the changes
                                 # textfield width expanded to container (parent) width
                                 content_padding=ft.Padding(left=5, top=3, right=5, bottom=3),
                                 autofocus=True)                                                                     # Set focus to the TextField                        
         page.update()                                                                                               # update the page to show the textfield instead of the text
         
-    def save_header_edit(e, header_index: int, df_dataset: pd.DataFrame, old_value) -> None:
+    def save_header_edit(e, header_index: int, old_value) -> None:
+        global df_dataset
         new_value = e.control.value
         print("Proposed new header name: ", new_value)
         
@@ -198,12 +208,13 @@ def main(page: ft.Page):
     
           
     #--------- DATA EDITING IN DATATABLE FUNCTIONS -------------------------------------    
-    def edit_data(e, row_index:int, header_index: int, df_dataset: pd.DataFrame) -> None:
+    def edit_data(e, row_index:int, header_index: int) -> None:
         # function to edit the value of a cell in the datatable, changing the cell to a textfield
+        global df_dataset
         old_value = e.control.content.value
         e.control.content = ft.TextField(
                                 value = old_value, 
-                                on_submit = lambda e: save_data_edit(e, row_index, header_index, df_dataset, old_value),    # when pressing enter, save the new value
+                                on_submit = lambda e: save_data_edit(e, row_index, header_index, old_value),    # when pressing enter, save the new value
                                 on_blur= lambda e: cancel_data_edit(e, row_index, header_index, old_value),   # when clicking outside the textfield, cancel the changes
                                 #height = 50,
                                 #content_padding=ft.Padding(left=5, top=3, right=5, bottom=3),
@@ -212,8 +223,9 @@ def main(page: ft.Page):
         page.update()     # update the page to show the textfield instead of the text
         
     
-    def save_data_edit(e, row_index: int, header_index: int, df_dataset, old_value) -> None:
+    def save_data_edit(e, row_index: int, header_index: int, old_value) -> None:
         # function to save the changes made in the datatable and revert the textfield to text
+        global df_dataset
         #print("\nTypes of the datatable:\n ", df_dataset.dtypes)
         if row_index > 0:   
             comparing_value = df_dataset.iloc[row_index-1, header_index]
@@ -233,11 +245,18 @@ def main(page: ft.Page):
                 print("No need to convert to type: ", type(new_value))
             
             # update the dataset in global variable with the new value
-            df_dataset.iloc[row_index, header_index] = new_value
+            df_dataset.iloc[row_index, header_index] = new_value          
             # update the datatable with the new value (change textfield to text)
             _datatable_space.content.rows[row_index].cells[header_index].content = ft.Text(new_value)
             page.update()  # update the page to show the text instead of the textfield
             print(f"Saving changes made on row {row_index}, column {header_index}...")   # success message in terminal  
+            
+            # bug controlling: sometimes the new value is not shown on the datatable, so we force it to be shown
+            if _datatable_space.content.rows[row_index].cells[header_index].content.value == old_value:
+                print("Bug happened: ", _datatable_space.content.rows[row_index].cells[header_index].content.value)
+                _datatable_space.content.rows[row_index].cells[header_index].content.value = new_value       # force the new value to be shown in the text
+                print("After bug: ", _datatable_space.content.rows[row_index].cells[header_index].content.value)
+                page.update() 
                     
         except ValueError:
             snack_bar_error_edit = ft.SnackBar(content=ft.Text(f"ERROR: Invalid value type for column {header_index}. Inserted: {type(new_value)}. Expected: {type(comparing_value)}"),
@@ -289,38 +308,74 @@ def main(page: ft.Page):
                 
     def delete_rows(e) -> None:
         # function to delete the selected rows from the datatable (after clicking Yes on dialog)
-        close_deletion_dialog(e)    # close the deletion dialog
         global df_dataset, selected_rows
+        close_deletion_dialog(e)    # close the deletion dialog
         #print("\nDeleting rows: " + str(selected_rows))
         #print("\nBefore:", df_dataset)
         df_dataset.drop(selected_rows, axis=0, inplace=True)    # delete the selected rows from the dataset
         df_dataset.reset_index(drop=True, inplace=True)         # reset the index of the dataset, so it starts again from 0 and goes up consecutive numbers
         #print("\nAfter: ", df_dataset)
-        selected_rows.clear()                       # clear the list of selected rows
         reload_datatable_rows()                     # reload the datatable after changes are made (call the function made for this)
     
     
-    def create_new_row() -> None:
-        # function to create a new row in the datatable
-        refresh_info_number_of_rows()
     
     
+    def open_creation_dialog(e) -> None:
+        # function to open the dialog to confirm the creation of a new row
+        _creation_dialog.content = ft.Container(
+                                        ft.Column(
+                                            controls = [
+                                                ft.Slider(
+                                                    min=0,                          # index position of start of dataset
+                                                    max=len(df_dataset),            # next index after last row of dataset
+                                                    divisions=len(df_dataset),      # number of divisions in the slider
+                                                    label="{value}",                # label of the slider
+                                                    on_change = slider_change,      # function to update the text when slider value changes
+                                                ), 
+                                                ft.Text(f"Index selected for new row: {0}")    # text, will be refreshed on change of slider
+                                                ],
+                                            alignment=ft.MainAxisAlignment.CENTER,
+                                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                                            ),
+                                        height=200,
+                                        width=300,
+                                        )
+        page.open(_creation_dialog)
     
+       
+    def close_creation_dialog(e) -> None:
+        # function to just close the dialog to confirm the creation of a new row
+        page.close(_creation_dialog)
+
+    def slider_change(e) -> None:
+        # function to update the label of the slider when its value changes
+        global slider_creation_index
+        slider_creation_index = int(e.control.value)    #assign the value of the slider to the global variable
+        _creation_dialog.content.content.controls[1].value = f"Index selected for new row: {slider_creation_index}"   # show the index selected for the new row
+        _creation_dialog.update()   # just update the dialog, not the page
     
+    def create_new_row(e) -> None:
+        # function to create a new empty row in the datatable
+        global df_dataset, slider_creation_index, selected_rows
+        close_creation_dialog(e)    # close the creation dialog
+        print("Creating new row at index: ", slider_creation_index)
+        new_empty_row = pd.DataFrame([["" for _ in range(len(df_dataset.columns))]], columns=df_dataset.columns)   # create a new empty row
+        df_dataset = pd.concat([df_dataset.iloc[:slider_creation_index],    # slice the dataset to insert the new row
+                                new_empty_row, 
+                                df_dataset.iloc[slider_creation_index:]], 
+                                ignore_index=True)          # resulting axis will be numbered from 0 to n-1 (reset_index not necessary)
+        #df_dataset.reset_index(drop=True, inplace=True)
+        reload_datatable_rows()
     
     
     def reload_datatable_rows() -> None:
         # function to reload the datatable rows after changes are made
+        global df_dataset, selected_rows
         refresh_info_number_of_rows()                   # reload the number of rows in the dataset shown as info
-        datarows = create_datarows(df_dataset)          # create the DataRow controls for the datatable
+        selected_rows.clear()                           # clear the list of selected rows
+        datarows = create_datarows()                    # create the DataRow controls for the datatable
         _datatable_space.content.rows = datarows        # update the rows of the datatable
         page.update()                                   # update the page to show the changes in the datatable
-    
-    
-    
-    
-    
-    
     
     
     # plotly needs pandas dataframes to plot graphs
@@ -483,25 +538,37 @@ def main(page: ft.Page):
 
 
     # Create New Row button
+    _creation_dialog = ft.AlertDialog(
+            modal = False,    # can click outside to dismiss
+            title=ft.Text("Choose the index of the new empty row"),
+            content= "",   # content will be added in function open_creation_dialog (container with column with slider and text)
+            actions=[
+                ft.TextButton("Add row at selected index", on_click = create_new_row),      # create new row at index selected in slider
+                ft.TextButton("Cancel", on_click = close_creation_dialog),                  # close the dialog
+            ],
+            actions_alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+            #on_dismiss=lambda : page.add(ft.Text("Modal dialog dismissed")),
+        )
+    
     _create_new_row_button = ft.ElevatedButton(
                                 "Create New Row",
-                                on_click = create_new_row()
+                                on_click = open_creation_dialog
                                 )
     
     _editing_tools.content.controls.append(_create_new_row_button)
     
     
-    # Delete Selected Rows button
     
+    # Delete Selected Rows button
     _deletion_dialog = ft.AlertDialog(
-            modal = False,    # Force to click one option (dismiss not allowed)
+            modal = False,    # can click outside to dismiss
             title=ft.Text("Please confirm"),
             content= "",   # content added in function open_deletion_dialog, with refreshed selected_rows
             actions=[
                 ft.TextButton("Yes", on_click = delete_rows),               # own function to delete the selected rows (also must close the dialog)
                 ft.TextButton("No", on_click = close_deletion_dialog),      # just close dialog
             ],
-            actions_alignment=ft.MainAxisAlignment.END,
+            actions_alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
             #on_dismiss=lambda : page.add(ft.Text("Modal dialog dismissed")),
         )
             
